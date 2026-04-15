@@ -53,3 +53,21 @@ function broadcast(data) {
 }
 
 console.log("Server running...");
+
+if (data.type === "start") {
+    let cars = ["Car1", "Car2"];
+
+    let assigned = [];
+
+    players.forEach((p, i) => {
+        assigned.push({
+            name: p,
+            car: cars[Math.floor(Math.random() * cars.length)]
+        });
+    });
+
+    broadcast({
+        type: "start",
+        players: assigned
+    });
+}
