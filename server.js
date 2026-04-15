@@ -8,12 +8,25 @@ wss.on("connection", (ws) => {
     console.log("Player connected");
 
     ws.on("message", (message) => {
-        let data = JSON.parse(message);
+        let data;
+
+        try {
+            data = JSON.parse(message);
+        } catch (e) {
+            console.log("Invalid JSON");
+            return;
+        }
 
         // 👉 PLAYER JOIN
         if (data.type === "join") {
             ws.name = data.name;
-            players.push(ws.name);
+
+            // duplicate avoid
+            if (!players.includes(ws.name)) {
+                players.push(ws.name);
+            }
+
+            console.log("Joined:", ws.name);
 
             broadcast({
                 type: "players",
@@ -28,17 +41,41 @@ wss.on("connection", (ws) => {
                 msg: data.name + ": " + data.msg
             });
         }
+
+        // 🚗 START GAME
+        if (data.type === "start") {
+            console.log("Game Starting...");
+
+            let cars = ["Car1", "Car2"];
+
+            // shuffle cars
+            let shuffled = cars.sort(() => 0.5 - Math.random());
+
+            let assigned = [];
+
+            players.forEach((p, i) => {
+                assigned.push({
+                    name: p,
+                    car: shuffled[i % shuffled.length]
+                });
+            });
+
+            broadcast({
+                type: "start",
+                players: assigned
+            });
+        }
     });
 
     ws.on("close", () => {
+        console.log("Player disconnected:", ws.name);
+
         players = players.filter(p => p !== ws.name);
 
         broadcast({
             type: "players",
             list: players
         });
-
-        console.log("Player disconnected");
     });
 });
 
@@ -52,22 +89,4 @@ function broadcast(data) {
     });
 }
 
-console.log("Server running...");
-
-if (data.type === "start") {
-    let cars = ["Car1", "Car2"];
-
-    let assigned = [];
-
-    players.forEach((p, i) => {
-        assigned.push({
-            name: p,
-            car: cars[Math.floor(Math.random() * cars.length)]
-        });
-    });
-
-    broadcast({
-        type: "start",
-        players: assigned
-    });
-}
+console.log("🚀 Server running...");
