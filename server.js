@@ -1,8 +1,7 @@
 const WebSocket = require("ws");
-
 const wss = new WebSocket.Server({ port: process.env.PORT || 10000 });
 
-let players = [];
+let rooms = {};
 
 wss.on("connection", (ws) => {
     console.log("Player connected");
@@ -10,79 +9,83 @@ wss.on("connection", (ws) => {
     ws.on("message", (message) => {
         let data;
 
+        // 🛡 SAFE PARSE
         try {
             data = JSON.parse(message);
         } catch (e) {
-            console.log("Invalid JSON");
             return;
         }
 
-        // 👉 PLAYER JOIN
+        // 👉 JOIN ROOM
         if (data.type === "join") {
             ws.name = data.name;
+            ws.room = data.room;
 
-            // duplicate avoid
-            if (!players.includes(ws.name)) {
-                players.push(ws.name);
+            if (!rooms[ws.room]) {
+                rooms[ws.room] = [];
             }
 
-            console.log("Joined:", ws.name);
+            // ❌ duplicate avoid
+            if (!rooms[ws.room].includes(ws)) {
+                rooms[ws.room].push(ws);
+            }
 
-            broadcast({
-                type: "players",
-                list: players
-            });
+            sendPlayers(ws.room);
         }
 
         // 👉 CHAT
         if (data.type === "chat") {
-            broadcast({
+            broadcast(ws.room, {
                 type: "chat",
                 msg: data.name + ": " + data.msg
             });
         }
 
-        // 🚗 START GAME
+        // 👉 START
         if (data.type === "start") {
-            console.log("Game Starting...");
+            let players = rooms[ws.room].map(p => p.name);
 
-            let cars = ["Car1", "Car2"];
-
-            // shuffle cars
-            let shuffled = cars.sort(() => 0.5 - Math.random());
-
-            let assigned = [];
-
-            players.forEach((p, i) => {
-                assigned.push({
-                    name: p,
-                    car: shuffled[i % shuffled.length]
-                });
-            });
-
-            broadcast({
+            broadcast(ws.room, {
                 type: "start",
-                players: assigned
+                players: players
             });
         }
     });
 
+    // ❌ DISCONNECT
     ws.on("close", () => {
-        console.log("Player disconnected:", ws.name);
+        if (ws.room && rooms[ws.room]) {
+            rooms[ws.room] = rooms[ws.room].filter(p => p !== ws);
 
-        players = players.filter(p => p !== ws.name);
+            // 🧹 empty room delete
+            if (rooms[ws.room].length === 0) {
+                delete rooms[ws.room];
+            } else {
+                sendPlayers(ws.room);
+            }
+        }
 
-        broadcast({
-            type: "players",
-            list: players
-        });
+        console.log("Player disconnected");
     });
 });
 
-function broadcast(data) {
-    const msg = JSON.stringify(data);
+// 📤 SEND PLAYERS
+function sendPlayers(room) {
+    let list = rooms[room].map(p => p.name);
 
-    wss.clients.forEach(client => {
+    broadcast(room, {
+        type: "players",
+        list: list
+    });
+}
+
+// 📡 BROADCAST
+function broadcast(room, data) {
+    if (!rooms[room]) return;
+
+    let msg = JSON.stringify(data);
+
+    rooms[room].forEach(client => {
         if (client.readyState === WebSocket.OPEN) {
             client.send(msg);
         }
