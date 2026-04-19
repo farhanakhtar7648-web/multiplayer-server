@@ -9,7 +9,6 @@ wss.on("connection", (ws) => {
     ws.on("message", (message) => {
         let data;
 
-        // 🛡 SAFE PARSE
         try {
             data = JSON.parse(message);
         } catch (e) {
@@ -18,6 +17,7 @@ wss.on("connection", (ws) => {
 
         // 👉 JOIN ROOM
         if (data.type === "join") {
+            ws.id = data.id;        // 🔥 ID ADD
             ws.name = data.name;
             ws.room = data.room;
 
@@ -25,10 +25,14 @@ wss.on("connection", (ws) => {
                 rooms[ws.room] = [];
             }
 
-            // ❌ duplicate avoid
-            if (!rooms[ws.room].includes(ws)) {
-                rooms[ws.room].push(ws);
+            // ❌ same ID duplicate block
+            let exists = rooms[ws.room].find(p => p.id === ws.id);
+            if (exists) {
+                console.log("Duplicate ID blocked");
+                return;
             }
+
+            rooms[ws.room].push(ws);
 
             sendPlayers(ws.room);
         }
@@ -41,13 +45,16 @@ wss.on("connection", (ws) => {
             });
         }
 
-        // 👉 START
+        // 👉 START GAME
         if (data.type === "start") {
-            let players = rooms[ws.room].map(p => p.name);
+            let players = rooms[ws.room].map(p => ({
+                id: p.id,
+                name: p.name
+            }));
 
             broadcast(ws.room, {
                 type: "start",
-                players: players
+                players: players   // 🔥 ID + NAME
             });
         }
     });
@@ -57,7 +64,6 @@ wss.on("connection", (ws) => {
         if (ws.room && rooms[ws.room]) {
             rooms[ws.room] = rooms[ws.room].filter(p => p !== ws);
 
-            // 🧹 empty room delete
             if (rooms[ws.room].length === 0) {
                 delete rooms[ws.room];
             } else {
