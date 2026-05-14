@@ -23,8 +23,6 @@ wss.on("connection", (ws) => {
 		// 🏠 CREATE ROOM
 		if (data.type === "create_room") {
 
-			if (!data.room) return;
-
 			if (rooms[data.room]) {
 
 				ws.send(JSON.stringify({
@@ -95,7 +93,7 @@ wss.on("connection", (ws) => {
 			});
 		}
 
-		// 🚀 START GAME
+		// 🚀 START
 		if (data.type === "start") {
 
 			let players = rooms[ws.room].map(p => ({
@@ -116,18 +114,11 @@ wss.on("connection", (ws) => {
 		if (ws.room && rooms[ws.room]) {
 
 			rooms[ws.room] =
-				rooms[ws.room].filter(
-					p => p !== ws
-				);
+				rooms[ws.room].filter(p => p !== ws);
 
 			if (rooms[ws.room].length === 0) {
-
 				delete rooms[ws.room];
-
-				console.log("Room deleted:", ws.room);
-
 			} else {
-
 				sendPlayers(ws.room);
 			}
 		}
@@ -136,14 +127,11 @@ wss.on("connection", (ws) => {
 	});
 });
 
-// 📤 SEND PLAYERS
 function sendPlayers(room) {
 
 	if (!rooms[room]) return;
 
-	let list = rooms[room].map(
-		p => p.name
-	);
+	let list = rooms[room].map(p => p.name);
 
 	broadcast(room, {
 		type: "players",
@@ -151,7 +139,6 @@ function sendPlayers(room) {
 	});
 }
 
-// 📡 BROADCAST
 function broadcast(room, data) {
 
 	if (!rooms[room]) return;
