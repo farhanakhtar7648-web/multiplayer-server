@@ -4,7 +4,12 @@ const wss = new WebSocket.Server({
 	port: process.env.PORT || 10000
 });
 
-let rooms = {};
+const ROOM_NAME = "AFA LEGENDS";
+const MAX_PLAYERS = 10;
+
+let players = {};
+let startVotes = new Set();
+let banned = {};
 
 wss.on("connection", (ws) => {
 
@@ -20,63 +25,47 @@ wss.on("connection", (ws) => {
 			return;
 		}
 
-		// 🏠 CREATE ROOM
-		if (data.type === "create_room") {
+		// 👤 REGISTER NAME
+		if (data.type === "set_name") {
 
-			if (rooms[data.room]) {
+			if (isNameTaken(data.name)) {
 
 				ws.send(JSON.stringify({
 					type: "error",
-					msg: "Room already exists"
+					msg: "This name already exists"
 				}));
 
 				return;
 			}
 
-			rooms[data.room] = [];
-
-			ws.id = data.id;
-			ws.name = data.name;
-			ws.room = data.room;
-
-			rooms[data.room].push(ws);
-
-			console.log("Room created:", data.room);
-
-			sendPlayers(data.room);
-
-			ws.send(JSON.stringify({
-				type: "room_created"
-			}));
-
-			return;
-		}
-
-		// 🚪 JOIN ROOM
-		if (data.type === "join") {
-
-			if (!rooms[data.room]) {
+			if (banned[data.name]) {
 
 				ws.send(JSON.stringify({
 					type: "error",
-					msg: "Room not found"
+					msg: "You are banned for 5 minutes"
 				}));
 
 				return;
 			}
 
-			ws.id = data.id;
+			if (Object.keys(players).length >= MAX_PLAYERS) {
+
+				ws.send(JSON.stringify({
+					type: "error",
+					msg: "Room full, please wait second round"
+				}));
+
+				return;
+			}
+
 			ws.name = data.name;
-			ws.room = data.room;
+			ws.room = ROOM_NAME;
 
-			let exists = rooms[data.room].find(p => p.id === ws.id);
-			if (exists) return;
+			players[data.name] = ws;
 
-			rooms[data.room].push(ws);
+			sendPlayers();
 
-			console.log("Player joined:", ws.name);
-
-			sendPlayers(data.room);
+			console.log("Joined:", data.name);
 
 			return;
 		}
@@ -84,23 +73,42 @@ wss.on("connection", (ws) => {
 		// 💬 CHAT
 		if (data.type === "chat") {
 
-			broadcast(ws.room, {
+			if (!ws.name) return;
+
+			let color = "white";
+
+			if (data.msg.toLowerCase() === "start") {
+
+				startVotes.add(ws.name);
+				color = "yellow";
+
+				checkStart();
+			}
+
+			if (data.msg.startsWith("ban/")) {
+
+				let target = data.msg.split("/")[1];
+
+				if (players[target]) {
+
+					banned[target] = true;
+
+					setTimeout(() => {
+						delete banned[target];
+					}, 5 * 60 * 1000);
+
+					players[target].close();
+					delete players[target];
+				}
+
+				sendPlayers();
+				return;
+			}
+
+			broadcast({
 				type: "chat",
-				msg: data.name + ": " + data.msg
-			});
-		}
-
-		// 🚀 START GAME
-		if (data.type === "start") {
-
-			let players = rooms[ws.room].map(p => ({
-				id: p.id,
-				name: p.name
-			}));
-
-			broadcast(ws.room, {
-				type: "start",
-				players: players
+				msg: ws.name + ": " + data.msg,
+				color: color
 			});
 		}
 	});
@@ -108,47 +116,61 @@ wss.on("connection", (ws) => {
 	// ❌ DISCONNECT
 	ws.on("close", () => {
 
-		if (ws.room && rooms[ws.room]) {
-
-			rooms[ws.room] =
-				rooms[ws.room].filter(p => p !== ws);
-
-			if (rooms[ws.room].length === 0) {
-				delete rooms[ws.room];
-			} else {
-				sendPlayers(ws.room);
-			}
+		if (ws.name && players[ws.name]) {
+			delete players[ws.name];
+			sendPlayers();
 		}
-
-		console.log("Player disconnected");
 	});
 });
 
-// 📤 PLAYERS LIST
-function sendPlayers(room) {
+// 🧠 START CHECK
+function checkStart() {
 
-	if (!rooms[room]) return;
+	if (startVotes.size >= Object.keys(players).length && Object.keys(players).length > 0) {
 
-	let list = rooms[room].map(p => p.name);
+		broadcast({
+			type: "start_countdown"
+		});
 
-	broadcast(room, {
+		setTimeout(() => {
+
+			broadcast({
+				type: "game_start"
+			});
+
+			startVotes.clear();
+
+		}, 3000);
+	}
+}
+
+// 📤 PLAYER LIST
+function sendPlayers() {
+
+	let list = Object.keys(players);
+
+	broadcast({
 		type: "players",
 		list: list
 	});
 }
 
 // 📡 BROADCAST
-function broadcast(room, data) {
-
-	if (!rooms[room]) return;
+function broadcast(data) {
 
 	let msg = JSON.stringify(data);
 
-	rooms[room].forEach(client => {
-		if (client.readyState === WebSocket.OPEN) {
-			client.send(msg);
+	for (let p in players) {
+
+		if (players[p].readyState === WebSocket.OPEN) {
+			players[p].send(msg);
 		}
-	});
+	}
 }
 
-console.log("🚀 Server running...");
+// 🔍 NAME CHECK
+function isNameTaken(name) {
+	return players[name] !== undefined;
+}
+
+console.log("🚀 Server running AFA LEGENDS...");
