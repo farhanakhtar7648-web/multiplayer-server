@@ -1,169 +1,171 @@
 const WebSocket = require("ws");
 
 const wss = new WebSocket.Server({
-    port: process.env.PORT || 10000
+	port: process.env.PORT || 10000
 });
 
 let rooms = {};
 
 wss.on("connection", (ws) => {
 
-    console.log("Player connected");
+	console.log("Player connected");
 
-    ws.on("message", (message) => {
+	ws.on("message", (message) => {
 
-        let data;
+		let data;
 
-        try {
+		try {
+			data = JSON.parse(message);
+		} catch (e) {
+			return;
+		}
 
-            data = JSON.parse(message);
+		// 🏠 CREATE ROOM
+		if (data.type === "create_room") {
 
-        } catch (e) {
+			if (rooms[data.room]) {
 
-            return;
-        }
+				ws.send(JSON.stringify({
+					type: "error",
+					msg: "Room already exists"
+				}));
 
-        // 🏠 CREATE ROOM
-        if (data.type === "create_room") {
+				return;
+			}
 
-            if (rooms[data.room]) {
+			rooms[data.room] = [];
 
-                ws.send(JSON.stringify({
-                    type: "error",
-                    msg: "Room already exists"
-                }));
+			// ✅ host auto join
+			ws.id = data.id || "host";
+			ws.name = data.name || "Host";
+			ws.room = data.room;
 
-                return;
-            }
+			rooms[data.room].push(ws);
 
-            rooms[data.room] = [];
+			console.log("Room created:", data.room);
 
-            console.log("Room created:", data.room);
+			sendPlayers(data.room);
 
-            ws.send(JSON.stringify({
-                type: "room_created"
-            }));
-        }
+			ws.send(JSON.stringify({
+				type: "room_created"
+			}));
 
-        // 🚪 JOIN ROOM
-        if (data.type === "join") {
+			return;
+		}
 
-            // ❌ ROOM NOT FOUND
-            if (!rooms[data.room]) {
+		// 🚪 JOIN ROOM
+		if (data.type === "join") {
 
-                ws.send(JSON.stringify({
-                    type: "error",
-                    msg: "Room not found"
-                }));
+			if (!rooms[data.room]) {
 
-                return;
-            }
+				ws.send(JSON.stringify({
+					type: "error",
+					msg: "Room not found"
+				}));
 
-            ws.id = data.id;
-            ws.name = data.name;
-            ws.room = data.room;
+				return;
+			}
 
-            // ❌ duplicate ID
-            let exists = rooms[ws.room].find(
-                p => p.id === ws.id
-            );
+			ws.id = data.id;
+			ws.name = data.name;
+			ws.room = data.room;
 
-            if (exists) {
+			let exists = rooms[ws.room].find(
+				p => p.id === ws.id
+			);
 
-                console.log("Duplicate ID blocked");
+			if (exists) return;
 
-                return;
-            }
+			rooms[ws.room].push(ws);
 
-            rooms[ws.room].push(ws);
+			console.log("Player joined:", ws.name);
 
-            sendPlayers(ws.room);
-        }
+			sendPlayers(ws.room);
 
-        // 💬 CHAT
-        if (data.type === "chat") {
+			return;
+		}
 
-            broadcast(ws.room, {
-                type: "chat",
-                msg: data.name + ": " + data.msg
-            });
-        }
+		// 💬 CHAT
+		if (data.type === "chat") {
 
-        // 🚀 START GAME
-        if (data.type === "start") {
+			broadcast(ws.room, {
+				type: "chat",
+				msg: data.name + ": " + data.msg
+			});
+		}
 
-            let players = rooms[ws.room].map(p => ({
-                id: p.id,
-                name: p.name
-            }));
+		// 🚀 START GAME
+		if (data.type === "start") {
 
-            broadcast(ws.room, {
-                type: "start",
-                players: players
-            });
-        }
-    });
+			let players = rooms[ws.room].map(p => ({
+				id: p.id,
+				name: p.name
+			}));
 
-    // ❌ DISCONNECT
-    ws.on("close", () => {
+			broadcast(ws.room, {
+				type: "start",
+				players: players
+			});
+		}
+	});
 
-        if (ws.room && rooms[ws.room]) {
+	// ❌ DISCONNECT
+	ws.on("close", () => {
 
-            rooms[ws.room] =
-                rooms[ws.room].filter(
-                    p => p !== ws
-                );
+		if (ws.room && rooms[ws.room]) {
 
-            // 🗑 DELETE EMPTY ROOM
-            if (rooms[ws.room].length === 0) {
+			rooms[ws.room] =
+				rooms[ws.room].filter(
+					p => p !== ws
+				);
 
-                delete rooms[ws.room];
+			// 🗑 DELETE EMPTY ROOM
+			if (rooms[ws.room].length === 0) {
 
-                console.log(
-                    "Room deleted:",
-                    ws.room
-                );
+				delete rooms[ws.room];
 
-            } else {
+				console.log("Room deleted:", ws.room);
 
-                sendPlayers(ws.room);
-            }
-        }
+			} else {
 
-        console.log("Player disconnected");
-    });
+				sendPlayers(ws.room);
+			}
+		}
+
+		console.log("Player disconnected");
+	});
 });
 
 // 📤 SEND PLAYERS
 function sendPlayers(room) {
 
-    let list = rooms[room].map(
-        p => p.name
-    );
+	if (!rooms[room]) return;
 
-    broadcast(room, {
-        type: "players",
-        list: list
-    });
+	let list = rooms[room].map(
+		p => p.name
+	);
+
+	broadcast(room, {
+		type: "players",
+		list: list
+	});
 }
 
 // 📡 BROADCAST
 function broadcast(room, data) {
 
-    if (!rooms[room]) return;
+	if (!rooms[room]) return;
 
-    let msg = JSON.stringify(data);
+	let msg = JSON.stringify(data);
 
-    rooms[room].forEach(client => {
+	rooms[room].forEach(client => {
 
-        if (
-            client.readyState ===
-            WebSocket.OPEN
-        ) {
-
-            client.send(msg);
-        }
-    });
+		if (
+			client.readyState === WebSocket.OPEN
+		) {
+			client.send(msg);
+		}
+	});
 }
 
 console.log("🚀 Server running...");
