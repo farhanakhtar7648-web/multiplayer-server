@@ -23,6 +23,8 @@ wss.on("connection", (ws) => {
 		// 🏠 CREATE ROOM
 		if (data.type === "create_room") {
 
+			if (!data.room) return;
+
 			if (rooms[data.room]) {
 
 				ws.send(JSON.stringify({
@@ -35,9 +37,8 @@ wss.on("connection", (ws) => {
 
 			rooms[data.room] = [];
 
-			// ✅ host auto join
-			ws.id = data.id || "host";
-			ws.name = data.name || "Host";
+			ws.id = data.id;
+			ws.name = data.name;
 			ws.room = data.room;
 
 			rooms[data.room].push(ws);
@@ -70,17 +71,17 @@ wss.on("connection", (ws) => {
 			ws.name = data.name;
 			ws.room = data.room;
 
-			let exists = rooms[ws.room].find(
+			let exists = rooms[data.room].find(
 				p => p.id === ws.id
 			);
 
 			if (exists) return;
 
-			rooms[ws.room].push(ws);
+			rooms[data.room].push(ws);
 
 			console.log("Player joined:", ws.name);
 
-			sendPlayers(ws.room);
+			sendPlayers(data.room);
 
 			return;
 		}
@@ -119,7 +120,6 @@ wss.on("connection", (ws) => {
 					p => p !== ws
 				);
 
-			// 🗑 DELETE EMPTY ROOM
 			if (rooms[ws.room].length === 0) {
 
 				delete rooms[ws.room];
@@ -160,9 +160,7 @@ function broadcast(room, data) {
 
 	rooms[room].forEach(client => {
 
-		if (
-			client.readyState === WebSocket.OPEN
-		) {
+		if (client.readyState === WebSocket.OPEN) {
 			client.send(msg);
 		}
 	});
