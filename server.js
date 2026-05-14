@@ -69,10 +69,7 @@ wss.on("connection", (ws) => {
 			ws.name = data.name;
 			ws.room = data.room;
 
-			let exists = rooms[data.room].find(
-				p => p.id === ws.id
-			);
-
+			let exists = rooms[data.room].find(p => p.id === ws.id);
 			if (exists) return;
 
 			rooms[data.room].push(ws);
@@ -93,7 +90,7 @@ wss.on("connection", (ws) => {
 			});
 		}
 
-		// 🚀 START
+		// 🚀 START GAME
 		if (data.type === "start") {
 
 			let players = rooms[ws.room].map(p => ({
@@ -127,6 +124,7 @@ wss.on("connection", (ws) => {
 	});
 });
 
+// 📤 PLAYERS LIST
 function sendPlayers(room) {
 
 	if (!rooms[room]) return;
@@ -139,6 +137,7 @@ function sendPlayers(room) {
 	});
 }
 
+// 📡 BROADCAST
 function broadcast(room, data) {
 
 	if (!rooms[room]) return;
@@ -146,7 +145,6 @@ function broadcast(room, data) {
 	let msg = JSON.stringify(data);
 
 	rooms[room].forEach(client => {
-
 		if (client.readyState === WebSocket.OPEN) {
 			client.send(msg);
 		}
