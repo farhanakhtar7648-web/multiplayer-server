@@ -16,6 +16,7 @@ wss.on("connection", (ws) => {
 
 	console.log("✅ Player Connected");
 
+
 	// 📩 MESSAGE
 	ws.on("message", (msg) => {
 
@@ -38,7 +39,7 @@ wss.on("connection", (ws) => {
 
 			let username = data.name;
 
-			// ❌ duplicate username
+			// ❌ DUPLICATE
 			if (players[username]) {
 
 				ws.send(JSON.stringify({
@@ -49,18 +50,21 @@ wss.on("connection", (ws) => {
 				return;
 			}
 
-			// ✅ save player
+			// ✅ SAVE PLAYER
 			ws.name = username;
 			ws.id = data.id;
 
 			players[username] = ws;
 
-			console.log("👤 Saved:", username);
+			console.log("👤 Joined:", username);
 
-			// ✅ success
+			// ✅ SUCCESS
 			ws.send(JSON.stringify({
 				type: "name_ok"
 			}));
+
+			// 👥 UPDATE PLAYERS
+			sendPlayers();
 
 			return;
 		}
@@ -71,7 +75,6 @@ wss.on("connection", (ws) => {
 
 			console.log("🎮 Matchmaking:", ws.name);
 
-			// 🚀 OPEN LOBBY
 			ws.send(JSON.stringify({
 				type: "go_lobby"
 			}));
@@ -80,14 +83,13 @@ wss.on("connection", (ws) => {
 		}
 
 
-		// 💬 CHAT SYSTEM
-		if (data.type === "chat") {
+		// ▶ START GAME
+		if (data.type === "start_game") {
 
-			if (!ws.name) return;
+			console.log("🚀 Starting Game");
 
 			broadcast({
-				type: "chat",
-				msg: ws.name + ": " + data.msg
+				type: "start_game"
 			});
 
 			return;
@@ -100,15 +102,28 @@ wss.on("connection", (ws) => {
 
 		console.log("❌ Player Left");
 
-		// remove player
 		if (ws.name && players[ws.name]) {
 
 			delete players[ws.name];
 
 			console.log("Removed:", ws.name);
+
+			sendPlayers();
 		}
 	});
 });
+
+
+// 👥 SEND PLAYERS
+function sendPlayers() {
+
+	let list = Object.keys(players);
+
+	broadcast({
+		type: "players",
+		list: list
+	});
+}
 
 
 // 📡 BROADCAST
