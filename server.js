@@ -1,16 +1,22 @@
 const WebSocket = require("ws");
 
+// 🌐 SERVER
 const wss = new WebSocket.Server({
 	port: process.env.PORT || 10000
 });
 
-// 👤 players database
+// 👥 PLAYERS
 let players = {};
 
+console.log("🚀 SERVER RUNNING");
+
+
+// 🌐 NEW CONNECTION
 wss.on("connection", (ws) => {
 
 	console.log("✅ Player Connected");
 
+	// 📩 MESSAGE
 	ws.on("message", (msg) => {
 
 		let data;
@@ -21,15 +27,18 @@ wss.on("connection", (ws) => {
 
 		} catch (e) {
 
+			console.log("❌ Invalid JSON");
+
 			return;
 		}
 
-		// 👤 USERNAME SYSTEM
+
+		// 👤 SAVE PLAYER NAME
 		if (data.type === "set_name") {
 
 			let username = data.name;
 
-			// ❌ duplicate check
+			// ❌ duplicate username
 			if (players[username]) {
 
 				ws.send(JSON.stringify({
@@ -48,48 +57,72 @@ wss.on("connection", (ws) => {
 
 			console.log("👤 Saved:", username);
 
+			// ✅ success
 			ws.send(JSON.stringify({
 				type: "name_ok"
 			}));
 
-			sendPlayerList();
+			return;
+		}
+
+
+		// 🎮 MATCHMAKING
+		if (data.type === "join_match") {
+
+			console.log("🎮 Matchmaking:", ws.name);
+
+			// 🚀 OPEN LOBBY
+			ws.send(JSON.stringify({
+				type: "go_lobby"
+			}));
+
+			return;
+		}
+
+
+		// 💬 CHAT SYSTEM
+		if (data.type === "chat") {
+
+			if (!ws.name) return;
+
+			broadcast({
+				type: "chat",
+				msg: ws.name + ": " + data.msg
+			});
 
 			return;
 		}
 	});
 
+
 	// ❌ DISCONNECT
 	ws.on("close", () => {
 
-		if (ws.name) {
+		console.log("❌ Player Left");
+
+		// remove player
+		if (ws.name && players[ws.name]) {
 
 			delete players[ws.name];
 
-			console.log("❌ Left:", ws.name);
-
-			sendPlayerList();
+			console.log("Removed:", ws.name);
 		}
 	});
 });
 
 
-// 📤 SEND PLAYER LIST
-function sendPlayerList() {
+// 📡 BROADCAST
+function broadcast(data) {
 
-	let list = Object.keys(players);
-
-	let data = JSON.stringify({
-		type: "players",
-		list: list
-	});
+	let msg = JSON.stringify(data);
 
 	for (let p in players) {
 
-		if (players[p].readyState === WebSocket.OPEN) {
+		let client = players[p];
 
-			players[p].send(data);
+		if (client.readyState === WebSocket.OPEN) {
+
+			client.send(msg);
 		}
 	}
 }
-
-console.log("🚀 SERVER RUNNING");
