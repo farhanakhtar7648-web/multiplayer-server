@@ -34,7 +34,7 @@ wss.on("connection", (ws) => {
 		}
 
 
-		// 👤 SAVE PLAYER NAME
+		// 👤 SET NAME
 		if (data.type === "set_name") {
 
 			let username = data.name;
@@ -50,7 +50,7 @@ wss.on("connection", (ws) => {
 				return;
 			}
 
-			// ✅ SAVE PLAYER
+			// ✅ SAVE
 			ws.name = username;
 			ws.id = data.id;
 
@@ -70,7 +70,7 @@ wss.on("connection", (ws) => {
 		}
 
 
-		// 🎮 MATCHMAKING
+		// 🎮 JOIN MATCH
 		if (data.type === "join_match") {
 
 			console.log("🎮 Matchmaking:", ws.name);
