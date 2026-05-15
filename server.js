@@ -39,7 +39,7 @@ wss.on("connection", (ws) => {
 
 			let username = data.name;
 
-			// ❌ DUPLICATE
+			// ❌ DUPLICATE NAME
 			if (players[username]) {
 
 				ws.send(JSON.stringify({
@@ -50,7 +50,7 @@ wss.on("connection", (ws) => {
 				return;
 			}
 
-			// ✅ SAVE
+			// ✅ SAVE PLAYER
 			ws.name = username;
 			ws.id = data.id;
 
@@ -75,6 +75,10 @@ wss.on("connection", (ws) => {
 
 			console.log("🎮 Matchmaking:", ws.name);
 
+			// 👥 SEND PLAYERS AGAIN
+			sendPlayers();
+
+			// 🚀 OPEN LOBBY
 			ws.send(JSON.stringify({
 				type: "go_lobby"
 			}));
@@ -102,6 +106,7 @@ wss.on("connection", (ws) => {
 
 		console.log("❌ Player Left");
 
+		// REMOVE PLAYER
 		if (ws.name && players[ws.name]) {
 
 			delete players[ws.name];
@@ -114,7 +119,7 @@ wss.on("connection", (ws) => {
 });
 
 
-// 👥 SEND PLAYERS
+// 👥 SEND PLAYER LIST
 function sendPlayers() {
 
 	let list = Object.keys(players);
