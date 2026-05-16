@@ -1,17 +1,15 @@
 const WebSocket = require("ws");
 
-// 🌐 SERVER
 const wss = new WebSocket.Server({
 	port: process.env.PORT || 10000
 });
 
-// 👥 PLAYERS
 let players = {};
 
 console.log("🚀 SERVER RUNNING");
 
 
-// 🌐 NEW CONNECTION
+// 🌐 CONNECTION
 wss.on("connection", (ws) => {
 
 	console.log("✅ Player Connected");
@@ -28,18 +26,16 @@ wss.on("connection", (ws) => {
 
 		} catch (e) {
 
-			console.log("❌ Invalid JSON");
-
 			return;
 		}
 
 
-		// 👤 SET NAME
+		// 👤 PLAYER NAME
 		if (data.type === "set_name") {
 
 			let username = data.name;
 
-			// ❌ DUPLICATE NAME
+			// ❌ duplicate
 			if (players[username]) {
 
 				ws.send(JSON.stringify({
@@ -50,34 +46,34 @@ wss.on("connection", (ws) => {
 				return;
 			}
 
-			// ✅ SAVE PLAYER
 			ws.name = username;
-			ws.id = data.id;
 
-			players[username] = ws;
+			players[username] = {
+				ws: ws,
+				x: 0,
+				y: 0,
+				z: 0
+			};
 
 			console.log("👤 Joined:", username);
 
-			// ✅ SUCCESS
 			ws.send(JSON.stringify({
 				type: "name_ok"
 			}));
+
+			sendPlayers();
 
 			return;
 		}
 
 
-		// 🎮 JOIN MATCH
+		// 🎮 JOIN
 		if (data.type === "join_match") {
 
-			console.log("🎮 Matchmaking:", ws.name);
-
-			// 🚀 OPEN LOBBY FIRST
 			ws.send(JSON.stringify({
 				type: "go_lobby"
 			}));
 
-			// 👥 SEND PLAYERS AFTER DELAY
 			setTimeout(() => {
 
 				sendPlayers();
@@ -91,11 +87,24 @@ wss.on("connection", (ws) => {
 		// ▶ START GAME
 		if (data.type === "start_game") {
 
-			console.log("🚀 Starting Game");
-
 			broadcast({
 				type: "start_game"
 			});
+
+			return;
+		}
+
+
+		// 📍 POSITION UPDATE
+		if (data.type === "pos") {
+
+			if (!players[ws.name]) return;
+
+			players[ws.name].x = data.x;
+			players[ws.name].y = data.y;
+			players[ws.name].z = data.z;
+
+			sendPositions();
 
 			return;
 		}
@@ -105,28 +114,43 @@ wss.on("connection", (ws) => {
 	// ❌ DISCONNECT
 	ws.on("close", () => {
 
-		console.log("❌ Player Left");
+		console.log("❌ Left:", ws.name);
 
-		// REMOVE PLAYER
-		if (ws.name && players[ws.name]) {
+		delete players[ws.name];
 
-			delete players[ws.name];
-
-			console.log("Removed:", ws.name);
-
-			sendPlayers();
-		}
+		sendPlayers();
 	});
 });
 
 
-// 👥 SEND PLAYER LIST
+// 👥 SEND PLAYERS
 function sendPlayers() {
 
-	let list = Object.keys(players);
+	let names = Object.keys(players);
 
 	broadcast({
 		type: "players",
+		list: names
+	});
+}
+
+
+// 📍 SEND POSITIONS
+function sendPositions() {
+
+	let list = {};
+
+	for (let p in players) {
+
+		list[p] = {
+			x: players[p].x,
+			y: players[p].y,
+			z: players[p].z
+		};
+	}
+
+	broadcast({
+		type: "positions",
 		list: list
 	});
 }
@@ -139,7 +163,7 @@ function broadcast(data) {
 
 	for (let p in players) {
 
-		let client = players[p];
+		let client = players[p].ws;
 
 		if (client.readyState === WebSocket.OPEN) {
 
