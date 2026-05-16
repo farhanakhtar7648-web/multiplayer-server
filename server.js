@@ -63,9 +63,6 @@ wss.on("connection", (ws) => {
 				type: "name_ok"
 			}));
 
-			// 👥 UPDATE PLAYERS
-			sendPlayers();
-
 			return;
 		}
 
@@ -75,13 +72,17 @@ wss.on("connection", (ws) => {
 
 			console.log("🎮 Matchmaking:", ws.name);
 
-			// 👥 SEND PLAYERS AGAIN
-			sendPlayers();
-
-			// 🚀 OPEN LOBBY
+			// 🚀 OPEN LOBBY FIRST
 			ws.send(JSON.stringify({
 				type: "go_lobby"
 			}));
+
+			// 👥 SEND PLAYERS AFTER DELAY
+			setTimeout(() => {
+
+				sendPlayers();
+
+			}, 500);
 
 			return;
 		}
