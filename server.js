@@ -51,7 +51,7 @@ wss.on("connection", (ws) => {
 			players[username] = {
 				ws: ws,
 				x: 0,
-				y: 0,
+				y: 5,
 				z: 0
 			};
 
