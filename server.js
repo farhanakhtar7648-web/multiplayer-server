@@ -67,7 +67,7 @@ wss.on("connection", (ws) => {
 		}
 
 
-		// 🎮 JOIN
+		// 🎮 JOIN MATCH
 		if (data.type === "join_match") {
 
 			ws.send(JSON.stringify({
@@ -79,6 +79,15 @@ wss.on("connection", (ws) => {
 				sendPlayers();
 
 			}, 500);
+
+			return;
+		}
+
+
+		// 👥 GET PLAYERS
+		if (data.type === "get_players") {
+
+			sendPlayers();
 
 			return;
 		}
