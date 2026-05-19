@@ -8,25 +8,34 @@ let players = {};
 
 console.log("🚀 SERVER RUNNING");
 
+
+// 🌐 CONNECTION
 wss.on("connection", (ws) => {
 
 	console.log("✅ Player Connected");
 
+
+	// 📩 MESSAGE
 	ws.on("message", (msg) => {
 
 		let data;
 
 		try {
+
 			data = JSON.parse(msg);
+
 		} catch (e) {
+
 			return;
 		}
+
 
 		// 👤 SET NAME
 		if (data.type === "set_name") {
 
 			let username = data.name;
 
+			// ❌ duplicate username
 			if (players[username]) {
 
 				ws.send(JSON.stringify({
@@ -54,15 +63,38 @@ wss.on("connection", (ws) => {
 
 			sendPlayers();
 			sendPositions();
+
 			return;
 		}
 
-		// 👥 GET PLAYERS
-		if (data.type === "get_players") {
-			sendPlayers();
-			sendPositions();
+
+		// 🎮 JOIN MATCH
+		if (data.type === "join_match") {
+
+			ws.send(JSON.stringify({
+				type: "go_lobby"
+			}));
+
+			setTimeout(() => {
+
+				sendPlayers();
+				sendPositions();
+
+			}, 300);
+
 			return;
 		}
+
+
+		// 👥 GET PLAYERS
+		if (data.type === "get_players") {
+
+			sendPlayers();
+			sendPositions();
+
+			return;
+		}
+
 
 		// 📍 POSITION UPDATE
 		if (data.type === "pos") {
@@ -76,10 +108,13 @@ wss.on("connection", (ws) => {
 			players[ws.name].anim = data.anim;
 
 			sendPositions();
+
 			return;
 		}
 	});
 
+
+	// ❌ DISCONNECT
 	ws.on("close", () => {
 
 		console.log("❌ Left:", ws.name);
@@ -91,6 +126,8 @@ wss.on("connection", (ws) => {
 	});
 });
 
+
+// 👥 SEND PLAYERS
 function sendPlayers() {
 
 	let names = Object.keys(players);
@@ -101,6 +138,8 @@ function sendPlayers() {
 	});
 }
 
+
+// 📍 SEND POSITIONS
 function sendPositions() {
 
 	let list = {};
@@ -122,6 +161,8 @@ function sendPositions() {
 	});
 }
 
+
+// 📡 BROADCAST
 function broadcast(data) {
 
 	let msg = JSON.stringify(data);
@@ -131,6 +172,7 @@ function broadcast(data) {
 		let client = players[p].ws;
 
 		if (client.readyState === WebSocket.OPEN) {
+
 			client.send(msg);
 		}
 	}
