@@ -94,6 +94,14 @@ wss.on("connection", (ws) => {
 
 			return;
 		}
+		
+		// ▶ START GAME
+		if (data.type === "start_game") {
+		broadcast({
+		type: "start_game"
+		});
+		return;
+		}
 
 
 		// 📍 POSITION UPDATE
